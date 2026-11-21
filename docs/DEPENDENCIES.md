@@ -93,7 +93,8 @@ scripts can gate on it.
   invocation (never a persistent `npm config set`):
   `npm install -g --allow-scripts=@parcel/watcher,isolated-vm,sqlite3,protobufjs,agent-browser,oracledb,msgpackr-extract,ssh2,@sentry/node-native-stacktrace,@sentry/node-cpu-profiler,@confluentinc/kafka-javascript,cpu-features,@scarf/scarf,vue-demi n8n@<version>`.
 - **Distro Node is a shared-`libnode` build** — never link n8n's native
-  modules against it. The earlier `~/.local/lib/node-libs` symlink set and
-  `libnghttp3.a`/`libngtcp2.a` placeholder archives (a LIBRARY_PATH
-  workaround from the first install attempt) are retired and deleted; the
-  Node 24 tarball is self-contained.
+  modules against it. The `~/.local/lib/node-libs` LIBRARY_PATH workaround
+  from the first install attempt (a symlink set plus the `libnghttp3.a`/
+  `libngtcp2.a` placeholder archives) was retired and deleted from this host
+  on 2026-11-21 (see REQ issue joseluisll/n8n-manager#24); the Node 24
+  tarball is self-contained.
