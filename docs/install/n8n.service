@@ -1,11 +1,11 @@
 [Unit]
 Description=n8n workflow automation (local instance, loopback-only)
-After=network.target
+# No After=network.target here: it is a system unit, invisible to the user
+# manager, so ordering against it would be inert. n8n binds 127.0.0.1 and
+# needs no network ordering at start.
 
 [Service]
 Type=simple
-User=jllopez
-Group=jllopez
 EnvironmentFile=/home/jllopez/.config/n8n/n8n.env
 # n8n's launcher resolves node via `env node`: PATH must put the user-local
 # Node 24 (US-05.5) ahead of the distro Node 22 or the unit crash-loops
@@ -15,9 +15,9 @@ ExecStart=/home/jllopez/.local/bin/n8n start
 Restart=on-failure
 RestartSec=5
 
-# Loopback-only hardening (belt and braces: n8n itself binds 127.0.0.1
-# via N8N_LISTEN_ADDRESS in the env file; these restrict the unit anyway)
-PrivateNetwork=no
+# Effective hardening in a user unit: no privilege escalation from the
+# service process. (User=/Group= are not valid in user units; PrivateNetwork
+# was a no-op and has been removed.)
 NoNewPrivileges=true
 
 [Install]
