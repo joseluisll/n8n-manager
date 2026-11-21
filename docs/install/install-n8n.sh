@@ -105,6 +105,17 @@ if cmp -s "$SCRIPT_DIR/n8n.service" "$UNIT_DST"; then
 else
   cp "$SCRIPT_DIR/n8n.service" "$UNIT_DST"
   systemctl --user daemon-reload
+  # Converge the live service when the unit content actually changed
+  # (owner decision Option A on NF-1, issue #25): a re-run that edits the
+  # unit must not leave a running instance pinned to the old unit config.
+  # try-restart no-ops on an inactive service, and is-active guards the
+  # message so the output never claims a restart that did not happen.
+  if systemctl --user is-active --quiet n8n 2>/dev/null; then
+    systemctl --user try-restart n8n
+    echo "n8n.service was RESTARTED to pick up the changed unit"
+  else
+    echo "unit changed but n8n.service is not active — no restart (it starts below)"
+  fi
   echo "unit installed/updated: $UNIT_DST"
 fi
 systemctl --user enable --now n8n
