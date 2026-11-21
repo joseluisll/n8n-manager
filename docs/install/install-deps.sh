@@ -33,7 +33,7 @@ version_at_least() {  # version_at_least FOUND MINIMUM -> true when FOUND >= MIN
 }
 
 node_ok()  { command -v node >/dev/null 2>&1 && [[ "$(node -p 'process.versions.node')" == 24.* ]]; }
-npm_ok()   { command -v npm >/dev/null 2>&1 && version_at_least "$(npm --version)" "10.0.0"; }
+npm_ok()   { command -v npm >/dev/null 2>&1 && version_at_least "$(npm --version)" "11.0.0"; }
 java_ok()  { [[ -x "$JAVA21_HOME/bin/java" ]]; }
 maven_ok() { command -v mvn >/dev/null 2>&1; }
 
@@ -49,10 +49,10 @@ java_major() {
 if node_ok; then
   ok node "node $(node -p 'process.versions.node') (>= 24 required)"
   if npm_ok; then
-    ok npm  "npm $(npm --version) (>= 10 required)"
+    ok npm  "npm $(npm --version) (>= 11 required)"
   else
     found="$(command -v npm >/dev/null 2>&1 && npm --version || echo missing)"
-    fail npm "found ${found}, expected >= 10.0.0 — npm ships with Node 24; re-run: $0"
+    fail npm "found ${found}, expected >= 11.0.0 — npm ships with Node 24; re-run: $0"
   fi
 else
   found="$(command -v node >/dev/null 2>&1 && node --version || echo missing)"
@@ -74,8 +74,8 @@ else
     hash -r
     node_ok && ok node "installed $(node --version) (user-local, distro node untouched)" \
              || fail node "installation did not produce a Node 24 on PATH"
-    npm_ok && ok npm "npm $(npm --version) (bundled, >= 10 required)" \
-           || fail npm "bundled npm missing or < 10 after Node install"
+    npm_ok && ok npm "npm $(npm --version) (bundled, >= 11 required)" \
+           || fail npm "bundled npm missing or < 11 after Node install"
   fi
 fi
 

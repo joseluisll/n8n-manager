@@ -10,7 +10,8 @@ expectations with `deps status`.
 | Dependency | Expected        | Purpose                                   |
 |------------|-----------------|-------------------------------------------|
 | Node.js    | `>= 24.0.0`     | n8n runtime (n8n 2.x refuses Node < 24)   |
-| npm        | `>= 10.0.0`     | n8n install/updates (ships with Node 24)  |
+| npm        | `>= 11.0.0`     | n8n install/updates (ships with Node 24)  |
+| n8n        | `2.48.7` (pinned) | n8n Community instance (pin lives as `N8N_VERSION=` in `docs/install/install-n8n.sh`; bump deliberately — update that script and this table together) |
 | Java       | `>= 21`         | Manager build and runtime (Spring Boot 3.5) |
 | Maven      | `>= 3.9.0`      | Manager build (`mvn -B package`)          |
 
@@ -56,7 +57,7 @@ $ docs/install/install-deps.sh --check    # verify only, exit 1 on mismatch
 What it does per dependency:
 
 - **Node/npm**: checks `node --version` against `>= 24.0.0` and `npm --version`
-  against `>= 10.0.0` (same gate as `deps status`). When Node is unsatisfied,
+  against `>= 11.0.0` (same gate as `deps status`). When Node is unsatisfied,
   downloads the pinned Node 24 LTS tarball from nodejs.org, verifies its
   SHA-256 against the published `SHASUMS256.txt`, extracts to
   `~/tools/node-v<version>-linux-x64`, re-points `~/tools/node24`, and
