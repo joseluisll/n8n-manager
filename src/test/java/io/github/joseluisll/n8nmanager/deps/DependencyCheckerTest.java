@@ -43,7 +43,7 @@ class DependencyCheckerTest {
     @Test
     void reportsAllSatisfiedOnCurrentBaseline() {
         DependencyChecker checker = checkerWith(
-                props(">=24.0.0", ">=10.0.0", ">=21", ">=3.9.0"),
+                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0"),
                 java.util.Map.of(
                         "node", new Result(0, "v24.22.3\n", ""),
                         "npm", new Result(0, "11.19.1\n", ""),
@@ -60,7 +60,7 @@ class DependencyCheckerTest {
     @Test
     void flagsWrongNodeMajorWithRemediation() {
         DependencyChecker checker = checkerWith(
-                props(">=24.0.0", ">=10.0.0", ">=21", ">=3.9.0"),
+                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0"),
                 java.util.Map.of(
                         "node", new Result(0, "v22.22.1\n", ""),
                         "npm", new Result(0, "9.2.0\n", ""),
@@ -98,7 +98,7 @@ class DependencyCheckerTest {
         // NF-3: PATH java is 17 (user default) while the manager runs on the
         // JDK 21 at the configured home; the check must probe the home and OK.
         DependencyChecker checker = checkerWith(
-                props(">=24.0.0", ">=10.0.0", ">=21", ">=3.9.0"),
+                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0"),
                 java.util.Map.of(
                         "node", new Result(0, "v24.22.3\n", ""),
                         "npm", new Result(0, "11.19.1\n", ""),
@@ -143,7 +143,7 @@ class DependencyCheckerTest {
     @Test
     void renderPrintsNoteForOkButCaveatedJava() {
         DependencyChecker checker = checkerWith(
-                props(">=24.0.0", ">=10.0.0", ">=21", ">=3.9.0"),
+                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0"),
                 java.util.Map.of(
                         "node", new Result(0, "v24.22.3\n", ""),
                         "npm", new Result(0, "11.19.1\n", ""),
@@ -160,7 +160,7 @@ class DependencyCheckerTest {
     @Test
     void renderNamesEveryFailedDependency() {
         DependencyChecker checker = checkerWith(
-                props(">=24.0.0", ">=10.0.0", ">=21", ">=3.9.0"),
+                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0"),
                 java.util.Map.of(
                         "node", new Result(0, "v22.22.1\n", ""),
                         "npm", new Result(0, "9.2.0\n", ""),
@@ -176,7 +176,7 @@ class DependencyCheckerTest {
     @Test
     void renderSaysAllSatisfiedWhenGreen() {
         DependencyChecker checker = checkerWith(
-                props(">=24.0.0", ">=10.0.0", ">=21", ">=3.9.0"),
+                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0"),
                 java.util.Map.of(
                         "node", new Result(0, "v24.22.3\n", ""),
                         "npm", new Result(0, "11.19.1\n", ""),

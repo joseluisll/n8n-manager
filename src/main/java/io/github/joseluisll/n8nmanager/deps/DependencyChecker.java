@@ -47,7 +47,7 @@ public class DependencyChecker {
 
     private static final Map<String, String> DEFAULT_EXPECTATIONS = Map.of(
             "node", ">=24.0.0",
-            "npm", ">=10.0.0",
+            "npm", ">=11.0.0",
             "java", ">=21",
             "maven", ">=3.9.0");
 
