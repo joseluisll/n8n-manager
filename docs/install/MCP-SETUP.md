@@ -47,16 +47,17 @@ install -m 600 /dev/null ~/.config/n8n/mcp-token   # then paste the token in
 
 ## Workflow exposure policy (D-3)
 
-DEFAULT (agent, conservative): the exposed-workflow list is EXPLICIT and
-recorded here. When the owner exposes a workflow for MCP clients, add a line
-below:
+**UPDATED 2026-11-21 (owner decision in chat): auto-expose is ON.** The
+"MCP access for new workflows" toggle (Settings → Instance-level MCP) is
+verified **enabled** — every NEW workflow is automatically exposed to MCP
+clients on creation. Note the toggle is not retroactive: existing workflows
+keep whatever exposure they had (the instance had 0 workflows when the
+policy flipped, so nothing was left unexposed). To un-expose, toggle the
+setting off and manage the list below explicitly.
 
 | Workflow | Exposed | Since | Reason |
 |---|---|---|---|
-| (none) | — | — | instance activated 2026-11-21 with **0 workflows exposed**; "automatically enable MCP access for new workflows" toggle is **OFF** (verified in the UI) |
-
-Auto-expose ON is the alternative — a one-line change to this section,
-owner's call.
+| (none) | — | — | policy flipped to auto-expose ON before any workflow existed |
 
 ## Hermes registration (client side, 2026-11-21)
 
