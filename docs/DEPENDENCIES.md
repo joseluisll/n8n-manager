@@ -28,6 +28,10 @@ $ n8n-manager deps status        # from the built jar, or
 $ docs/install/install-deps.sh --check
 ```
 
+Note: `deps status`, `n8n upgrade` and the other manager service commands
+probe `n8n` in `~/.local/bin` — the manager process needs `~/.local/bin` on
+its PATH (the normal login shell has it; under cron/su, export it first).
+
 ## Host layout (this machine)
 
 - **Node 24 LTS**: `~/tools/node-v<version>-linux-x64`, stable symlink

@@ -132,39 +132,56 @@ public class UpgradeService {
             }
         }
 
-        List<String> backed = backupFiles();
-        String backupNote = backed.isEmpty() ? "no unit/env files found to back up"
-                : "backed up " + String.join(", ", backed) + " -> " + properties.backupDir();
+        BackupOutcome backup = backupFiles();
+        if (!backup.failed().isEmpty()) {
+            // Safety-first: an upgrade without its backups must not run (the
+            // files were not modified — the abort happens before the stop).
+            return new Result(from, target, false, false,
+                    "REFUSED: backing up " + String.join(", ", backup.failed())
+                            + " failed - aborting before touching anything; check the backup dir "
+                            + properties.backupDir() + " and re-run");
+        }
+        String backupNote = backup.backedUp().isEmpty() ? "no unit/env files found to back up"
+                : "backed up " + String.join(", ", backup.backedUp()) + " -> " + properties.backupDir();
 
         // D-2: always stop before installing — never hot-install under the live service.
         ServiceControlPort.ServiceResult stop = service.stop();
+        if (!stop.success()) {
+            // The install must not run under a possibly-live service (D-2).
+            return new Result(from, target, false, false,
+                    "could not stop the service before installing (D-2 forbids a hot install): "
+                            + stop.message() + ". Nothing was modified.");
+        }
 
         SystemdServiceControlResult install;
         try {
             install = runner.run("npm", "install", "-g",
                     "--allow-scripts=" + NPM_ALLOW_SCRIPTS, "n8n@" + target);
         } catch (Exception e) {
-            restoreService();
+            String restore = restoreService();
             return new Result(from, target, false, false,
                     "npm install failed (" + e.getMessage() + "). " + backupNote
-                            + " - service state: " + stop.message() + ". Rollback: n8n upgrade --version "
+                            + ". " + restore + ". Rollback: n8n upgrade --version "
                             + (from != null ? from : pin()));
         }
         if (install.exitCode() != 0) {
-            restoreService();
+            String restore = restoreService();
             return new Result(from, target, false, false,
                     "npm install n8n@" + target + " failed (exit " + install.exitCode() + "): "
-                            + firstLine(install.stderr()) + ". " + backupNote + " - service state: "
-                            + stop.message() + ". Rollback: n8n upgrade --version "
+                            + firstLine(install.stderr()) + ". " + backupNote + ". " + restore
+                            + ". Rollback: n8n upgrade --version "
                             + (from != null ? from : pin()));
         }
 
         String installed = probeVersion();
         if (!target.equals(installed)) {
-            restoreService();
+            String restore = restoreService();
+            String foundDesc = installed == null
+                    ? "the version read-back FAILED (n8n binary missing or broken after install)"
+                    : "the n8n binary reports '" + installed + "'";
             return new Result(from, installed, false, false,
-                    "after npm install the n8n binary reports '" + installed + "', expected '" + target
-                            + "'. " + backupNote + " - service state: " + stop.message()
+                    "after npm install " + foundDesc + ", expected '" + target
+                            + "'. " + backupNote + ". " + restore
                             + ". Rollback: n8n upgrade --version " + (from != null ? from : pin()));
         }
 
@@ -236,29 +253,16 @@ public class UpgradeService {
             return List.of();
         }
         try {
-            String json = Files.readString(packageJson, StandardCharsets.UTF_8);
-            // Minimal parse of the "dependencies" object of the private
-            // installed-nodes package.json — no JSON library on this classpath.
-            int i = json.indexOf("\"dependencies\"");
-            if (i < 0) {
+            // Jackson ships with spring-boot-starter-web — no hand-rolled
+            // JSON parsing (a brace inside a string value truncated the list
+            // silently with the previous regex approach).
+            com.fasterxml.jackson.databind.JsonNode deps = new com.fasterxml.jackson.databind.ObjectMapper()
+                    .readTree(packageJson.toFile()).get("dependencies");
+            if (deps == null || !deps.isObject()) {
                 return List.of();
             }
-            int open = json.indexOf('{', i);
-            int close = json.indexOf('}', open);
-            if (open < 0 || close < open) {
-                return List.of();
-            }
-            String body = json.substring(open + 1, close);
             List<String> names = new ArrayList<>();
-            for (String part : body.split(",")) {
-                int colon = part.indexOf(':');
-                if (colon > 0) {
-                    String name = part.substring(0, colon).trim();
-                    if (name.length() >= 2 && name.startsWith("\"") && name.endsWith("\"")) {
-                        names.add(name.substring(1, name.length() - 1));
-                    }
-                }
-            }
+            deps.fieldNames().forEachRemaining(names::add);
             return names;
         } catch (IOException e) {
             return List.of();
@@ -276,8 +280,10 @@ public class UpgradeService {
                 if (trimmed.startsWith("#") || trimmed.isBlank()) {
                     continue;
                 }
-                if (trimmed.startsWith("N8N_LICENSE")) {
-                    return trimmed.split("=")[0];
+                // Tolerate an 'export ' prefix and any letter case (finding 6).
+                String key = trimmed.startsWith("export ") ? trimmed.substring(7).trim() : trimmed;
+                if (key.toUpperCase(java.util.Locale.ROOT).startsWith("N8N_LICENSE")) {
+                    return key.split("=")[0].trim();
                 }
             }
         } catch (IOException ignored) {
@@ -299,8 +305,13 @@ public class UpgradeService {
         }
     }
 
-    private List<String> backupFiles() {
+    /** Backup result: which files were copied and which EXISTED but failed to copy. */
+    record BackupOutcome(List<String> backedUp, List<String> failed) {
+    }
+
+    private BackupOutcome backupFiles() {
         List<String> backed = new ArrayList<>();
+        List<String> failed = new ArrayList<>();
         String stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
         Path dir = Path.of(properties.backupDir(), stamp);
         for (String file : List.of(properties.unitFile(), properties.envFile())) {
@@ -311,20 +322,24 @@ public class UpgradeService {
                     Files.copy(src, dir.resolve(src.getFileName().toString()),
                             java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                     backed.add(src.getFileName().toString());
-                } catch (IOException ignored) {
-                    // best-effort backup; the failure is visible in the report list
+                } catch (IOException e) {
+                    // A failed backup must be VISIBLE (it aborts the upgrade).
+                    failed.add(src.getFileName().toString() + " (" + e.getMessage() + ")");
                 }
             }
         }
-        return backed;
+        return new BackupOutcome(List.copyOf(backed), List.copyOf(failed));
     }
 
-    /** Best-effort: bring the service back after a failed mid-flight upgrade. */
-    private void restoreService() {
+    /** Best-effort: bring the service back after a failed mid-flight upgrade; the outcome is REPORTED, never swallowed. */
+    private String restoreService() {
         try {
-            service.start();
-        } catch (Exception ignored) {
-            // the report already carries the rollback command
+            ServiceControlPort.ServiceResult start = service.start();
+            return start.success()
+                    ? "service restore attempt: " + start.message()
+                    : "service restore attempt FAILED: " + start.message();
+        } catch (Exception e) {
+            return "service restore attempt FAILED: " + e.getMessage();
         }
     }
 

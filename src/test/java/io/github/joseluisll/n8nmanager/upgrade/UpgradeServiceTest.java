@@ -221,6 +221,74 @@ class UpgradeServiceTest {
         assertTrue(r.message().contains("EACCES"));
         assertTrue(r.message().contains("Rollback: n8n upgrade --version 2.48.0"));
         assertTrue(svc.calls.contains("start"), "restore attempt after npm failure");
+        assertTrue(r.message().contains("service restore attempt"), "restore outcome is reported, not swallowed");
+    }
+
+    @Test
+    void stopFailureAbortsBeforeAnythingIsModified() {
+        FakeService svc = new FakeService();
+        svc.stopSucceeds = false;
+        UpgradeService s = service(svc, cmd -> {
+            if ("n8n".equals(cmd[0])) {
+                return ok("2.48.0\n");
+            }
+            return ok("");
+        }, url -> true);
+        UpgradeService.Result r = s.upgrade(null);
+        assertFalse(r.success());
+        assertTrue(r.message().contains("could not stop the service"));
+        assertTrue(r.message().contains("D-2"), "names the decision that forbids the hot install");
+        assertTrue(r.message().contains("Nothing was modified"));
+        assertEquals(List.of("stop"), svc.calls, "no install, no restore-start after a failed stop");
+    }
+
+    @Test
+    void restoreFailureIsReportedWhenTheServiceCannotComeBack() {
+        FakeService svc = new FakeService();
+        svc.startSucceeds = false;
+        UpgradeService s = service(svc, cmd -> {
+            if ("n8n".equals(cmd[0])) {
+                return ok("2.48.0\n");
+            }
+            if ("npm".equals(cmd[0])) {
+                return new UpgradeService.SystemdServiceControlResult(1, "", "boom\n");
+            }
+            return ok("");
+        }, url -> true);
+        UpgradeService.Result r = s.upgrade(null);
+        assertFalse(r.success());
+        assertTrue(r.message().contains("service restore attempt FAILED"),
+                "a failed restore must be visible in the report: " + r.message());
+    }
+
+    @Test
+    void failedBackupAbortsTheUpgradeBeforeAnythingRuns() throws Exception {
+        Files.writeString(tmp.resolve("n8n.env"), "N8N_PORT=5678\n");
+        // a FILE where the backup directory would be created -> copy fails
+        Files.writeString(tmp.resolve("backups"), "not a directory");
+        FakeService svc = new FakeService();
+        UpgradeService s = service(svc, cmd -> {
+            if ("n8n".equals(cmd[0])) {
+                return ok("2.48.0\n");
+            }
+            return ok("");
+        }, url -> true);
+        UpgradeService.Result r = s.upgrade(null);
+        assertFalse(r.success());
+        assertTrue(r.message().contains("REFUSED: backing up"));
+        assertTrue(svc.calls.isEmpty(), "no lifecycle action runs after a failed backup");
+    }
+
+    @Test
+    void exportPrefixAndLowercaseLicenseLinesAlsoRefuse() throws Exception {
+        Files.writeString(tmp.resolve("n8n.env"), "export n8n_license_activation_key=xyz\n");
+        FakeService svc = new FakeService();
+        UpgradeService s = service(svc, cmd -> ok("2.48.0\n"), url -> true);
+        UpgradeService.Result r = s.upgrade(null);
+        assertFalse(r.success());
+        assertTrue(r.message().contains("REFUSED"));
+        assertTrue(r.message().contains("n8n_license_activation_key"));
+        assertTrue(svc.calls.isEmpty());
     }
 
     @Test
