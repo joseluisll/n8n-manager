@@ -2,7 +2,7 @@
 
 CLI tool to manage n8n instances via the [n8n REST API](https://docs.n8n.io/api/).
 
-Built with Java 17, Spring Boot 3.5 and Spring Shell 3.4.
+Built with Java 21, Spring Boot 3.5 and Spring Shell 3.4.
 
 ## Build
 
