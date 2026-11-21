@@ -4,9 +4,10 @@ import io.github.joseluisll.n8nmanager.n8n.N8nClient;
 import org.jline.utils.AttributedString;
 import org.jline.utils.AttributedStyle;
 import org.springframework.shell.jline.PromptProvider;
+import org.springframework.shell.standard.ShellComponent;
 import org.springframework.stereotype.Component;
 
-@Component
+@ShellComponent
 public class WorkflowCommands {
 
     private final N8nClient client;
