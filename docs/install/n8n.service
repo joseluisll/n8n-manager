@@ -1,0 +1,24 @@
+[Unit]
+Description=n8n workflow automation (local instance, loopback-only)
+After=network.target
+
+[Service]
+Type=simple
+User=jllopez
+Group=jllopez
+EnvironmentFile=/home/jllopez/.config/n8n/n8n.env
+# n8n's launcher resolves node via `env node`: PATH must put the user-local
+# Node 24 (US-05.5) ahead of the distro Node 22 or the unit crash-loops
+# with 'Node.js version 22.x not supported' (grounded 2026-11-21).
+Environment=PATH=/home/jllopez/.local/bin:/home/jllopez/tools/node24/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/jllopez/.local/bin/n8n start
+Restart=on-failure
+RestartSec=5
+
+# Loopback-only hardening (belt and braces: n8n itself binds 127.0.0.1
+# via N8N_LISTEN_ADDRESS in the env file; these restrict the unit anyway)
+PrivateNetwork=no
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target
