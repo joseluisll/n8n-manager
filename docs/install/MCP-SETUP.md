@@ -58,6 +58,25 @@ below:
 Auto-expose ON is the alternative — a one-line change to this section,
 owner's call.
 
+## Hermes registration (client side, 2026-11-21)
+
+The endpoint is registered as a Hermes MCP server (name `n8n`, alongside
+`claude-mem` and `neis`):
+
+```bash
+hermes config set mcp_servers.n8n.url "http://127.0.0.1:5678/mcp-server/http"
+hermes config set mcp_servers.n8n.headers.Authorization "Bearer $(cat ~/.config/n8n/mcp-token)"
+hermes config set mcp_servers.n8n.timeout 180
+hermes config set mcp_servers.n8n.connect_timeout 60
+hermes mcp test n8n     # -> Connected, tools discovered: 70
+```
+
+`hermes mcp test` confirms `✓ Connected` and the tool discovery; tools register
+as `mcp_n8n_<tool>` in every Hermes session after a restart or in-session
+`/reload-mcp`. The Bearer token lives in `~/.hermes/config.yaml` (Hermes masks
+it in `config get`/`mcp test` output); keep the source file `~/.config/n8n/mcp-token`
+at `0600`.
+
 ## Agent verification (after the owner enables)
 
 1. **Endpoint answers**: `POST http://127.0.0.1:5678/mcp-server/http` no
