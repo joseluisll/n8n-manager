@@ -28,14 +28,32 @@ ok()      { printf 'OK    %-6s %s\n' "$1" "$2"; }
 fail()    { printf 'FAIL  %-6s %s\n' "$1" "$2"; FAILURES+=("$1"); }
 info()    { printf '...   %-6s %s\n' "$1" "$2"; }
 
+version_at_least() {  # version_at_least FOUND MINIMUM -> true when FOUND >= MINIMUM
+  [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" == "$2" ]]
+}
+
 node_ok()  { command -v node >/dev/null 2>&1 && [[ "$(node -p 'process.versions.node')" == 24.* ]]; }
+npm_ok()   { command -v npm >/dev/null 2>&1 && version_at_least "$(npm --version)" "10.0.0"; }
 java_ok()  { [[ -x "$JAVA21_HOME/bin/java" ]]; }
 maven_ok() { command -v mvn >/dev/null 2>&1; }
+
+# Major version of a java binary ("openjdk version \"21.0.13.1\"..." -> 21);
+# empty when the binary is missing or its output is unparseable.
+java_major() {
+  local out
+  out="$("$1" -version 2>&1 | head -1 | sed -n 's/.*version "\([0-9][0-9]*\).*/\1/p')" || true
+  [[ "$out" =~ ^[0-9]+$ ]] && printf '%s' "$out"
+}
 
 # --- Node.js + npm ---------------------------------------------------------
 if node_ok; then
   ok node "node $(node -p 'process.versions.node') (>= 24 required)"
-  ok npm  "npm $(npm --version)"
+  if npm_ok; then
+    ok npm  "npm $(npm --version) (>= 10 required)"
+  else
+    found="$(command -v npm >/dev/null 2>&1 && npm --version || echo missing)"
+    fail npm "found ${found}, expected >= 10.0.0 — npm ships with Node 24; re-run: $0"
+  fi
 else
   found="$(command -v node >/dev/null 2>&1 && node --version || echo missing)"
   if [[ "$CHECK_ONLY" == 1 ]]; then
@@ -56,13 +74,22 @@ else
     hash -r
     node_ok && ok node "installed $(node --version) (user-local, distro node untouched)" \
              || fail node "installation did not produce a Node 24 on PATH"
-    ok npm "npm $(npm --version) (bundled)"
+    npm_ok && ok npm "npm $(npm --version) (bundled, >= 10 required)" \
+           || fail npm "bundled npm missing or < 10 after Node install"
   fi
 fi
 
 # --- Java 21 ---------------------------------------------------------------
 if java_ok; then
   ok java "$("$JAVA21_HOME/bin/java" -version 2>&1 | head -1)"
+  # NF-3: the manager jar is class-file 65 (Java 21) and crashes with
+  # UnsupportedClassVersionError under the user-default Java 17 shell, so warn
+  # when PATH java is older than the JDK 21 the manager actually needs.
+  path_major="$(command -v java >/dev/null 2>&1 && java_major java || true)"
+  if [[ -n "$path_major" && "$path_major" -lt 21 ]]; then
+    printf 'WARN  %-6s %s\n' java \
+      "PATH java is ${path_major} — the manager needs 21: export JAVA_HOME=$JAVA21_HOME PATH=\"\$JAVA_HOME/bin:\$PATH\""
+  fi
 else
   # Idempotent system install exists (apt); never run sudo unattended — instruct.
   fail java "OpenJDK 21 not found at $JAVA21_HOME — run: sudo apt-get install openjdk-21-jdk (idempotent)"

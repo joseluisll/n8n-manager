@@ -55,7 +55,8 @@ $ docs/install/install-deps.sh --check    # verify only, exit 1 on mismatch
 
 What it does per dependency:
 
-- **Node/npm**: checks `node --version` against `>= 24.0.0`. When unsatisfied,
+- **Node/npm**: checks `node --version` against `>= 24.0.0` and `npm --version`
+  against `>= 10.0.0` (same gate as `deps status`). When Node is unsatisfied,
   downloads the pinned Node 24 LTS tarball from nodejs.org, verifies its
   SHA-256 against the published `SHASUMS256.txt`, extracts to
   `~/tools/node-v<version>-linux-x64`, re-points `~/tools/node24`, and
@@ -77,6 +78,16 @@ What it does per dependency:
 installer script or the manual step above). Exit status of the `--check` mode
 of `install-deps.sh` is non-zero when any dependency is unsatisfied, so CI or
 scripts can gate on it.
+
+Java is probed at the JDK 21 installation (`n8n.deps.java-home`, default
+`/usr/lib/jvm/java-21-openjdk-amd64`) — the same path `install-deps.sh`
+verifies — not at the `java` on PATH: the user-default `JAVA_HOME` here is a
+Java 17 that other tooling relies on, and the manager jar is class-file 65, so
+a PATH probe would report a WRONG VERSION that does not reflect the manager's
+actual runtime. When the PATH `java` is older than the probed JDK 21, both
+`deps status` and `install-deps.sh` print a note telling you to export
+`JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64 PATH="$JAVA_HOME/bin:$PATH"`
+(the documented repo pattern above) before running the manager or Maven.
 
 ## Known pitfalls
 

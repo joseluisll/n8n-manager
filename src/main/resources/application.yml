@@ -13,6 +13,10 @@ n8n:
   # Expected versions of the local-stack dependencies (US-05.5).
   # Canonical record and install procedures: docs/DEPENDENCIES.md
   deps:
+    # JDK 21 installation probed by `deps status` (NF-3) — the same path
+    # docs/install/install-deps.sh verifies. Deliberately not JAVA_HOME,
+    # which on this host is a Java 17 used by other tooling.
+    java-home: "/usr/lib/jvm/java-21-openjdk-amd64"
     expected:
       node: ">=24.0.0"
       npm: ">=10.0.0"
