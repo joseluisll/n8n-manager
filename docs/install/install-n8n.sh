@@ -34,14 +34,43 @@ UNIT_DST="$HOME/.config/systemd/user/n8n.service"
 step() { printf '\n== %s ==\n' "$*"; }
 
 step "0/5 prerequisites (Node >= 24 via US-05.5, npm >= 11, build tools)"
-node_major="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
-if [ "$node_major" -lt 24 ]; then
-  echo "ERROR: Node.js >= 24 required, found '$(node -v 2>/dev/null || echo none)'." >&2
+# Resolve node/npm the way the deployed systemd unit does: n8n.service sets
+# Environment=PATH to put the user-local Node 24 first (~/.local/bin, then
+# the ~/tools/node24 stable symlink). The invoking shell's PATH alone is NOT
+# reliable — under cron/su it can omit ~/.local/bin, which made this check
+# fail with a misleading "Node.js >= 24 required, found 'none'" even though
+# the unit's Node was fine (NF-7, issue #25). Probe the unit's PATH first,
+# then fall back to the invoking shell's PATH.
+UNIT_NODE_PATH="$HOME/.local/bin:$HOME/tools/node24/bin:/usr/local/bin:/usr/bin:/bin"
+node_bin="$(PATH="$UNIT_NODE_PATH" command -v node 2>/dev/null || true)"
+if [ -z "$node_bin" ]; then
+  node_bin="$(command -v node 2>/dev/null || true)"
+fi
+if [ -z "$node_bin" ]; then
+  echo "ERROR: Node.js >= 24 not found. Searched the systemd unit's PATH" >&2
+  echo "($UNIT_NODE_PATH) and this shell's PATH ($PATH)." >&2
   echo "Run docs/install/install-deps.sh first (US-05.5 owns the Node runtime)." >&2
   exit 1
 fi
-echo "node: $(node -v) ($(command -v node))"
-npm_v="$(npm -v)"
+node_major="$("$node_bin" -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
+if [ "$node_major" -lt 24 ]; then
+  echo "ERROR: Node.js >= 24 required, found '$("$node_bin" -v 2>/dev/null || echo none)' at $node_bin." >&2
+  echo "Run docs/install/install-deps.sh first (US-05.5 owns the Node runtime)." >&2
+  exit 1
+fi
+echo "node: $("$node_bin" -v) ($node_bin)"
+# npm ships with Node 24; resolve it next to the node we just validated so
+# a minimal-PATH context (cron/su) cannot silently pick up a distro npm.
+npm_bin="$(dirname "$node_bin")/npm"
+if [ ! -x "$npm_bin" ]; then
+  npm_bin="$(PATH="$UNIT_NODE_PATH" command -v npm 2>/dev/null || true)"
+  [ -n "$npm_bin" ] || npm_bin="$(command -v npm 2>/dev/null || true)"
+fi
+if [ -z "$npm_bin" ]; then
+  echo "ERROR: npm not found next to node ($node_bin) nor on PATH." >&2
+  exit 1
+fi
+npm_v="$("$npm_bin" -v)"
 echo "npm:  $npm_v"
 for tool in make g++; do
   command -v "$tool" >/dev/null || { echo "ERROR: $tool missing (isolated-vm needs it)" >&2; exit 1; }
@@ -55,7 +84,7 @@ else
   # A re-run of `npm install -g` re-resolves the whole tree even for an
   # already-satisfied spec (minutes of work, files churned under a live
   # service), so it only runs when the pinned version is NOT met.
-  npm_config_prefix="$N8N_PREFIX" npm install -g --allow-scripts="$NPM_ALLOW_SCRIPTS" "n8n@$N8N_VERSION"
+  npm_config_prefix="$N8N_PREFIX" "$npm_bin" install -g --allow-scripts="$NPM_ALLOW_SCRIPTS" "n8n@$N8N_VERSION"
 fi
 echo "installed n8n version: $("$N8N_BIN" --version)"
 
@@ -110,6 +139,8 @@ if [ -n "$bad" ]; then
 fi
 echo "listening on 127.0.0.1:5678 only"
 printf 'health: '
-curl -fsS http://127.0.0.1:5678/healthz
+# --max-time bounds the health probe: a hung (not refused) endpoint must
+# not block the installer indefinitely (NF-5, issue #25).
+curl -fsS --max-time 10 http://127.0.0.1:5678/healthz
 echo
 echo "ALL STEPS CONVERGED"
