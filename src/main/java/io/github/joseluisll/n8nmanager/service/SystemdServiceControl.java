@@ -53,8 +53,11 @@ public class SystemdServiceControl implements ServiceControlPort {
     @Override
     public ServiceResult start() {
         String state = queryActiveState();
-        if ("active".equals(state)) {
-            return new ServiceResult("start", false, true, unit() + " is already active");
+        if ("active".equals(state) || "activating".equals(state)) {
+            // 'activating' already has a start in flight — starting again is a
+            // systemd no-op, so report it as one instead of double-starting.
+            return new ServiceResult("start", false, true,
+                    unit() + " is already active (state: " + state + ")");
         }
         return mutate("start", "started", "active");
     }
@@ -62,9 +65,12 @@ public class SystemdServiceControl implements ServiceControlPort {
     @Override
     public ServiceResult stop() {
         String state = queryActiveState();
-        if (!"active".equals(state)) {
-            return new ServiceResult("stop", false, true,
-                    unit() + " is already not active (state: " + state + ")");
+        // ONLY an exact 'inactive' is an already-stopped no-op (F2): a unit in
+        // 'activating' would become active moments later (a no-op here would
+        // report the opposite of the achieved state), and 'failed' needs the
+        // stop to reset. Any other state -> perform the real stop + read-back.
+        if ("inactive".equals(state)) {
+            return new ServiceResult("stop", false, true, unit() + " is already inactive");
         }
         return mutate("stop", "stopped", "inactive");
     }
@@ -116,12 +122,31 @@ public class SystemdServiceControl implements ServiceControlPort {
     }
 
     private String queryActiveState() {
+        Result result;
         try {
-            Result result = runner.run("systemctl", "--user", "is-active", unit());
-            return firstLine(result.stdout()) != null ? firstLine(result.stdout()).trim() : "unknown";
+            result = runner.run("systemctl", "--user", "is-active", unit());
         } catch (Exception e) {
             throw sessionFailure("could not query the unit state", e);
         }
+        if (result.exitCode() == 0) {
+            return wordOf(result.stdout());
+        }
+        String err = firstLine(result.stderr());
+        if (err != null && !err.isBlank()) {
+            // systemctl could not answer at all — the real missing-session mode
+            // (F1): `systemctl --user is-active` exits non-zero with the dbus
+            // error on STDERR and EMPTY stdout. Never a unit state; route to
+            // the actionable R-1 diagnostic instead of an 'unknown' state word.
+            throw sessionFailure("systemctl --user is-active exited " + result.exitCode(),
+                    new IllegalStateException(err));
+        }
+        // exit non-zero WITH a state word ('inactive' exit 3, 'failed', ...)
+        return wordOf(result.stdout());
+    }
+
+    private static String wordOf(String stdout) {
+        String line = firstLine(stdout);
+        return line != null ? line.trim() : "unknown";
     }
 
     /** Runs a state-mutating systemctl verb and verifies the outcome with a read-back against the expected post-state. */
@@ -137,6 +162,21 @@ public class SystemdServiceControl implements ServiceControlPort {
             throw sessionFailure(verb + " could not be invoked", e);
         }
         String state = queryActiveState();
+        // Transient-window grace (F3): Type=notify units and ExecStartPre steps
+        // keep is-active on 'activating' briefly after a SUCCESSFUL start, and
+        // 'deactivating' after a stop — poll for a bounded window before
+        // declaring the read-back mismatch a failure.
+        if (!expectedState.equals(state) && isTransient(state)) {
+            for (int i = 0; i < 10 && !expectedState.equals(state); i++) {
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                state = queryActiveState();
+            }
+        }
         if (!expectedState.equals(state)) {
             return new ServiceResult(verb, false, false,
                     unit() + " reported state '" + state + "' after " + verb
@@ -145,15 +185,28 @@ public class SystemdServiceControl implements ServiceControlPort {
         return new ServiceResult(verb, true, true, unit() + " " + pastTense);
     }
 
+    private static boolean isTransient(String state) {
+        return "activating".equals(state) || "deactivating".equals(state);
+    }
+
     private ServiceResult mutateEnablement(String verb, String pastTense) {
         String targetState = "enable".equals(verb) ? "enabled" : "disabled";
         String current;
         try {
             Result probe = runner.run("systemctl", "--user", "is-enabled", unit());
+            String probeErr = firstLine(probe.stderr());
+            if (probe.stdout().isBlank() && probeErr != null && !probeErr.isBlank()) {
+                // Same missing-session mode as is-active (F1): no state word,
+                // error on stderr — route to the R-1 diagnostic.
+                throw sessionFailure("systemctl --user is-enabled exited " + probe.exitCode(),
+                        new IllegalStateException(probeErr));
+            }
             current = firstLine(probe.stdout()) != null ? firstLine(probe.stdout()).trim() : "unknown";
             if (targetState.equals(current)) {
                 return new ServiceResult(verb, false, true, unit() + " is already " + current);
             }
+        } catch (IllegalStateException e) {
+            throw e;
         } catch (Exception e) {
             throw sessionFailure("could not query the unit's enablement", e);
         }
@@ -162,7 +215,7 @@ public class SystemdServiceControl implements ServiceControlPort {
             if (result.exitCode() != 0) {
                 return new ServiceResult(verb, false, false,
                         unit() + " " + verb + " failed (exit " + result.exitCode() + "): "
-                                + firstLine(result.stderr()));
+                                + firstLine(result.stderr()) + journalHint());
             }
         } catch (Exception e) {
             throw sessionFailure(verb + " could not be invoked", e);

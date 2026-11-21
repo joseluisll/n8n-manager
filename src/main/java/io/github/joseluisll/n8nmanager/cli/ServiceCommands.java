@@ -6,10 +6,14 @@ import org.springframework.shell.standard.ShellCommandGroup;
 import org.springframework.shell.standard.ShellComponent;
 import org.springframework.shell.standard.ShellMethod;
 
+import java.util.function.Supplier;
+
 /**
  * systemd service management commands for the local n8n instance (US-05.2).
  * All actions are idempotent no-ops when the unit is already in the requested
- * state (NFR-1); failures surface with diagnostics (FR-2).
+ * state (NFR-1); failures surface as FAILED lines with diagnostics (FR-2) —
+ * a missing systemd user session yields the actionable XDG_RUNTIME_DIR fix
+ * (R-1), never a raw stack trace.
  */
 @ShellComponent
 @ShellCommandGroup("n8n service")
@@ -26,19 +30,19 @@ public class ServiceCommands {
     @ShellMethod(key = "n8n service start",
             value = "Start the local n8n systemd service (no-op when already active)")
     public String start() {
-        return message(service.start());
+        return call(service::start);
     }
 
     @ShellMethod(key = "n8n service stop",
             value = "Stop the local n8n systemd service (no-op when already inactive)")
     public String stop() {
-        return message(service.stop());
+        return call(service::stop);
     }
 
     @ShellMethod(key = "n8n service restart",
             value = "Restart the local n8n systemd service (starts it when inactive)")
     public String restart() {
-        return message(service.restart());
+        return call(service::restart);
     }
 
     @ShellMethod(key = "n8n service status",
@@ -50,16 +54,21 @@ public class ServiceCommands {
     @ShellMethod(key = "n8n service enable",
             value = "Enable the n8n service to start at login (no-op when already enabled)")
     public String enable() {
-        return message(service.enable());
+        return call(service::enable);
     }
 
     @ShellMethod(key = "n8n service disable",
             value = "Disable the n8n service from starting at login (no-op when already disabled)")
     public String disable() {
-        return message(service.disable());
+        return call(service::disable);
     }
 
-    private static String message(ServiceControlPort.ServiceResult result) {
-        return (result.success() ? "OK: " : "FAILED: ") + result.message();
+    private String call(Supplier<ServiceControlPort.ServiceResult> action) {
+        try {
+            ServiceControlPort.ServiceResult result = action.get();
+            return (result.success() ? "OK: " : "FAILED: ") + result.message();
+        } catch (IllegalStateException e) {
+            return "FAILED: " + e.getMessage();
+        }
     }
 }
