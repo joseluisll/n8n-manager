@@ -22,3 +22,9 @@ n8n:
       npm: ">=11.0.0"
       java: ">=21"
       maven: ">=3.9.0"
+
+  # systemd user unit running the local n8n instance (US-05.2).
+  # Deployed unit: ~/.config/systemd/user/n8n.service (docs/install/n8n.service)
+  service:
+    unit: "n8n.service"
+    journal-lines: 10
