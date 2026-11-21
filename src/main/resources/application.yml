@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: n8n-manager
+  main:
+    web-application-type: none
+
+n8n:
+  # Base URL of the n8n instance, e.g. https://n8n.example.com
+  base-url: ${N8N_BASE_URL:http://localhost:5678}
+  # n8n API key (n8n UI -> Settings -> n8n API). Prefer the N8N_API_KEY env var.
+  api-key: ${N8N_API_KEY:}
