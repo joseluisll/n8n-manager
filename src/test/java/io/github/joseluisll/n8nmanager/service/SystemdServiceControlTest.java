@@ -193,6 +193,7 @@ class SystemdServiceControlTest {
         ServiceControlPort.ServiceResult result = control.enable();
         assertFalse(result.success());
         assertTrue(result.message().contains("Access denied"));
+        assertTrue(result.message().contains("journalctl"), "F4: enablement failures carry the journal hint too");
     }
 
     // ---- status ----

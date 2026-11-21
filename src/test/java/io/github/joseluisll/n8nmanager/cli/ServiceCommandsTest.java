@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ServiceCommandsTest {
 
     /** In-memory port double recording the calls it receives. */
-    private static final class FakePort implements ServiceControlPort {
+    private static class FakePort implements ServiceControlPort {
         final List<String> calls = new ArrayList<>();
         ServiceControlPort.ServiceResult next =
                 new ServiceControlPort.ServiceResult("start", false, true, "already");
@@ -78,6 +78,23 @@ class ServiceCommandsTest {
         String out = commands.start();
         assertTrue(out.startsWith("FAILED: "));
         assertTrue(out.contains("boom"));
+    }
+
+    @Test
+    void missingSessionSurfacesAsFailedLineWithTheFix() {
+        FakePort port = new FakePort() {
+            @Override
+            public ServiceResult start() {
+                throw new IllegalStateException(
+                        "could not query the unit state: no usable systemd user session (bus gone). "
+                                + "Fix: export XDG_RUNTIME_DIR=/run/user/$(id -u)");
+            }
+        };
+        ServiceCommands commands = new ServiceCommands(port, new SystemdServiceControl(
+                new io.github.joseluisll.n8nmanager.config.ServiceProperties("n8n.service", 5)));
+        String out = commands.start();
+        assertTrue(out.startsWith("FAILED: "), "R-1: actionable FAILED line, never a stack trace");
+        assertTrue(out.contains("XDG_RUNTIME_DIR"));
     }
 
     @Test
