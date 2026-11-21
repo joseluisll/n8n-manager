@@ -15,3 +15,7 @@ target/
 
 ### OS ###
 .DS_Store
+
+### Logs ###
+*.log
+n8n-manager.log
