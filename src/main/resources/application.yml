@@ -9,3 +9,12 @@ n8n:
   base-url: ${N8N_BASE_URL:http://localhost:5678}
   # n8n API key (n8n UI -> Settings -> n8n API). Prefer the N8N_API_KEY env var.
   api-key: ${N8N_API_KEY:}
+
+  # Expected versions of the local-stack dependencies (US-05.5).
+  # Canonical record and install procedures: docs/DEPENDENCIES.md
+  deps:
+    expected:
+      node: ">=24.0.0"
+      npm: ">=10.0.0"
+      java: ">=21"
+      maven: ">=3.9.0"
