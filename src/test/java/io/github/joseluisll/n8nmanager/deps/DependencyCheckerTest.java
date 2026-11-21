@@ -24,9 +24,9 @@ class DependencyCheckerTest {
     private static final Result MAVEN_OK =
             new Result(0, "Apache Maven 3.9.16 (2bdd9fddda4b155ebf8000e807eb73fd829a51d5)\n", "");
 
-    private static DependencyProperties props(String node, String npm, String java, String maven) {
+    private static DependencyProperties props(String node, String npm, String java, String maven, String n8n) {
         return new DependencyProperties(
-                new DependencyProperties.Expected(node, npm, java, maven), TEST_JAVA_HOME);
+                new DependencyProperties.Expected(node, npm, java, maven, n8n), TEST_JAVA_HOME);
     }
 
     private static DependencyChecker checkerWith(DependencyProperties props,
@@ -43,24 +43,25 @@ class DependencyCheckerTest {
     @Test
     void reportsAllSatisfiedOnCurrentBaseline() {
         DependencyChecker checker = checkerWith(
-                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0"),
+                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0", null),
                 java.util.Map.of(
                         "node", new Result(0, "v24.22.3\n", ""),
                         "npm", new Result(0, "11.19.1\n", ""),
                         TEST_JAVA_BIN, JAVA_21,
-                        "mvn", MAVEN_OK));
+                        "mvn", MAVEN_OK,
+                        "n8n", new Result(0, "2.48.7\n", "")));
         List<DependencyChecker.DependencyStatus> statuses = checker.checkAll();
         for (DependencyChecker.DependencyStatus s : statuses) {
             assertTrue(s.ok(), () -> s.name() + " should be satisfied: " + s.diagnostic());
             assertEquals(null, s.diagnostic());
         }
-        assertEquals(4, statuses.size());
+        assertEquals(5, statuses.size());
     }
 
     @Test
     void flagsWrongNodeMajorWithRemediation() {
         DependencyChecker checker = checkerWith(
-                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0"),
+                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0", null),
                 java.util.Map.of(
                         "node", new Result(0, "v22.22.1\n", ""),
                         "npm", new Result(0, "9.2.0\n", ""),
@@ -79,7 +80,7 @@ class DependencyCheckerTest {
     @Test
     void flagsMissingToolWithDiagnostic() {
         DependencyChecker checker = checkerWith(
-                props(null, null, null, null),
+                props(null, null, null, null, null),
                 java.util.Map.of(
                         "node", new Result(0, "v24.22.3\n", ""),
                         "npm", new Result(0, "11.19.1\n", ""),
@@ -98,7 +99,7 @@ class DependencyCheckerTest {
         // NF-3: PATH java is 17 (user default) while the manager runs on the
         // JDK 21 at the configured home; the check must probe the home and OK.
         DependencyChecker checker = checkerWith(
-                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0"),
+                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0", null),
                 java.util.Map.of(
                         "node", new Result(0, "v24.22.3\n", ""),
                         "npm", new Result(0, "11.19.1\n", ""),
@@ -116,7 +117,7 @@ class DependencyCheckerTest {
     @Test
     void noNoteWhenPathJavaIsAlso21() {
         DependencyChecker checker = checkerWith(
-                props(null, null, null, null),
+                props(null, null, null, null, null),
                 java.util.Map.of(
                         TEST_JAVA_BIN, JAVA_21,
                         "java", JAVA_21));
@@ -128,7 +129,7 @@ class DependencyCheckerTest {
     @Test
     void failsWithInstallHintWhenJdk21HomeMissing() {
         DependencyChecker checker = checkerWith(
-                props(null, null, null, null),
+                props(null, null, null, null, null),
                 java.util.Map.of(
                         // PATH java present at 17 - must not satisfy the check
                         "java", JAVA_17));
@@ -143,13 +144,14 @@ class DependencyCheckerTest {
     @Test
     void renderPrintsNoteForOkButCaveatedJava() {
         DependencyChecker checker = checkerWith(
-                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0"),
+                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0", null),
                 java.util.Map.of(
                         "node", new Result(0, "v24.22.3\n", ""),
                         "npm", new Result(0, "11.19.1\n", ""),
                         TEST_JAVA_BIN, JAVA_21,
                         "java", JAVA_17,
-                        "mvn", MAVEN_OK));
+                        "mvn", MAVEN_OK,
+                        "n8n", new Result(0, "2.48.7\n", "")));
         String report = checker.render(checker.checkAll());
         assertTrue(report.contains("All dependencies satisfied."));
         assertTrue(report.contains("note  [java]"));
@@ -160,7 +162,7 @@ class DependencyCheckerTest {
     @Test
     void renderNamesEveryFailedDependency() {
         DependencyChecker checker = checkerWith(
-                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0"),
+                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0", null),
                 java.util.Map.of(
                         "node", new Result(0, "v22.22.1\n", ""),
                         "npm", new Result(0, "9.2.0\n", ""),
@@ -176,12 +178,13 @@ class DependencyCheckerTest {
     @Test
     void renderSaysAllSatisfiedWhenGreen() {
         DependencyChecker checker = checkerWith(
-                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0"),
+                props(">=24.0.0", ">=11.0.0", ">=21", ">=3.9.0", null),
                 java.util.Map.of(
                         "node", new Result(0, "v24.22.3\n", ""),
                         "npm", new Result(0, "11.19.1\n", ""),
                         TEST_JAVA_BIN, JAVA_21,
-                        "mvn", MAVEN_OK));
+                        "mvn", MAVEN_OK,
+                        "n8n", new Result(0, "2.48.7\n", "")));
         String report = checker.render(checker.checkAll());
         assertTrue(report.contains("All dependencies satisfied."));
     }

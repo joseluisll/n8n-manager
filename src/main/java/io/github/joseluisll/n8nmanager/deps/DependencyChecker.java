@@ -49,18 +49,23 @@ public class DependencyChecker {
             "node", ">=24.0.0",
             "npm", ">=11.0.0",
             "java", ">=21",
-            "maven", ">=3.9.0");
+            "maven", ">=3.9.0",
+            // Single source of the n8n version pin (D-1, US-05.3): install-n8n.sh
+            // extracts this value; `n8n upgrade` uses it as the default target.
+            "n8n", "2.48.7");
 
     private static final Map<String, String> REMEDIATION = Map.of(
             "node", "n8n 2.x refuses Node < 24 - install the user-local Node 24 LTS: docs/install/install-deps.sh (see docs/DEPENDENCIES.md)",
             "npm", "npm ships with Node 24 - installing Node fixes this too (docs/install/install-deps.sh)",
             "java", "the manager builds and runs on Java 21 - install OpenJDK 21 (sudo apt-get install openjdk-21-jdk, idempotent) and export JAVA_HOME="
                     + DEFAULT_JAVA_HOME + " for this repo (docs/DEPENDENCIES.md)",
-            "maven", "install Maven 3.9.x per docs/DEPENDENCIES.md");
+            "maven", "install Maven 3.9.x per docs/DEPENDENCIES.md",
+            "n8n", "upgrade with `n8n upgrade` (manager, US-05.3) or re-run docs/install/install-n8n.sh after raising the pin in application.yml (docs/DEPENDENCIES.md)");
 
     private static final Map<String, String[]> PROBES = Map.of(
             "node", new String[]{"node", "--version"},
             "npm", new String[]{"npm", "--version"},
+            "n8n", new String[]{"n8n", "--version"},
             // java is probed at the JDK 21 home path (see checkJava), not on PATH
             "maven", new String[]{"mvn", "--version"});
 
@@ -72,8 +77,8 @@ public class DependencyChecker {
         this(properties, DependencyChecker::execute);
     }
 
-    /** Test constructor: inject a stubbed runner. */
-    DependencyChecker(DependencyProperties properties, CommandRunner runner) {
+    /** Test constructor: inject a stubbed runner (public: other slices' tests stub the probes too). */
+    public DependencyChecker(DependencyProperties properties, CommandRunner runner) {
         this.properties = properties;
         this.runner = runner;
     }
@@ -84,6 +89,7 @@ public class DependencyChecker {
         statuses.add(check("npm"));
         statuses.add(check("java"));
         statuses.add(check("maven"));
+        statuses.add(check("n8n"));
         return statuses;
     }
 
@@ -219,6 +225,8 @@ public class DependencyChecker {
                     ? properties.expected().java() : null;
             case "maven" -> properties != null && properties.expected() != null
                     ? properties.expected().maven() : null;
+            case "n8n" -> properties != null && properties.expected() != null
+                    ? properties.expected().n8n() : null;
             default -> null;
         };
         return configured != null && !configured.isBlank() ? configured : DEFAULT_EXPECTATIONS.get(name);
@@ -239,6 +247,8 @@ public class DependencyChecker {
                 case "java" -> quotedToken(first);
                 // "Apache Maven 3.9.16 (2bdd9fdd...)"
                 case "maven" -> mavenToken(first);
+                // "2.48.7"
+                case "n8n" -> firstToken(first);
                 default -> null;
             };
         } catch (IllegalArgumentException e) {

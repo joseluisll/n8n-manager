@@ -16,9 +16,12 @@
 set -euo pipefail
 
 # Pinned n8n version (decision 2026-11-21): an exact version makes a
-# re-run a true no-op instead of a silent upgrade. Bump deliberately
-# (update INSTALL.md and docs/DEPENDENCIES.md together).
-N8N_VERSION="2.48.7"            # Community edition, via npm
+# re-run a true no-op instead of a silent upgrade. SINGLE SOURCE (D-1,
+# US-05.3): the pin lives in the manager's application.yml
+# (n8n.deps.expected.n8n) and is extracted below; the literal is only a
+# fallback for when the repo checkout is not reachable, and is warned
+# about loudly in that case. Raise the pin in application.yml to upgrade.
+DEFAULT_N8N_VERSION="2.48.7"    # Community edition, via npm (fallback only)
 
 # Native postinstalls npm >= 11 skips without an explicit allow-list
 # (pitfall recorded in docs/DEPENDENCIES.md, grounded 2026-11-21).
@@ -30,6 +33,28 @@ N8N_BIN="$N8N_PREFIX/bin/n8n"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$HOME/.config/n8n/n8n.env"
 UNIT_DST="$HOME/.config/systemd/user/n8n.service"
+
+# Extract the version pin from the manager's application.yml (single
+# source, D-1): only a quoted numeric version under deps.expected
+# matches; the root-level `n8n:` key does not. Fallback = literal above,
+# warned loudly.
+N8N_VERSION=""
+for _app_yml in "$SCRIPT_DIR/../../src/main/resources/application.yml" \
+                "$SCRIPT_DIR/../../../src/main/resources/application.yml"; do
+  if [ -f "$_app_yml" ]; then
+    _v="$(sed -n 's/^ *n8n: *"\([0-9][0-9.]*\)".*/\1/p' "$_app_yml" | tail -1)"
+    if [ -n "$_v" ]; then
+      N8N_VERSION="$_v"
+      break
+    fi
+  fi
+done
+if [ -z "$N8N_VERSION" ]; then
+  echo "WARNING: could not extract the n8n pin from the manager's application.yml" >&2
+  echo "(looked next to $SCRIPT_DIR). Falling back to the baked-in" >&2
+  echo "$DEFAULT_N8N_VERSION — update that literal if it has drifted." >&2
+  N8N_VERSION="$DEFAULT_N8N_VERSION"
+fi
 
 step() { printf '\n== %s ==\n' "$*"; }
 

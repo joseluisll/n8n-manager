@@ -15,6 +15,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "n8n.deps")
 public record DependencyProperties(Expected expected, String javaHome) {
 
-    public record Expected(String node, String npm, String java, String maven) {
+    public record Expected(String node, String npm, String java, String maven, String n8n) {
     }
 }

@@ -11,13 +11,15 @@ expectations with `deps status`.
 |------------|-----------------|-------------------------------------------|
 | Node.js    | `>= 24.0.0`     | n8n runtime (n8n 2.x refuses Node < 24)   |
 | npm        | `>= 11.0.0`     | n8n install/updates (ships with Node 24)  |
-| n8n        | `2.48.7` (pinned) | n8n Community instance (pin lives as `N8N_VERSION=` in `docs/install/install-n8n.sh`; bump deliberately — update that script and this table together) |
+| n8n        | `2.48.7` (pinned) | n8n Community instance — **single source of the pin: `n8n.deps.expected.n8n` in `application.yml` (D-1, US-05.3)**; `install-n8n.sh` extracts it at run time and `n8n upgrade` uses it as the default target |
 | Java       | `>= 21`         | Manager build and runtime (Spring Boot 3.5) |
 | Maven      | `>= 3.9.0`      | Manager build (`mvn -B package`)          |
 
 The machine-readable copy of these expectations is
-`src/main/resources/application.yml` under `n8n.deps.expected.*`; keep the
-two in sync when changing a baseline.
+`src/main/resources/application.yml` under `n8n.deps.expected.*`; the n8n pin
+there (`n8n.deps.expected.n8n`) is the SINGLE SOURCE (D-1): `install-n8n.sh`
+and `n8n upgrade` both read it. Keep this table in sync when changing a
+baseline.
 
 Verify at any time:
 
@@ -71,6 +73,33 @@ What it does per dependency:
   prints the documented tarball install steps (download + SHA-512 check +
   extract to `~/tools/maven`, add `~/tools/maven/bin` to PATH via
   `~/tools/env.sh`).
+
+## n8n upgrade procedure (US-05.3)
+
+The manager owns n8n core and community-node upgrades:
+
+```console
+$ n8n-manager n8n upgrade pin       # show the configured pin (single source: application.yml)
+$ n8n-manager n8n upgrade           # upgrade to the pin: stop -> npm install (allow-scripts) -> start -> health gate
+$ n8n-manager n8n upgrade --version 2.49.0   # one-run override; pin drift is reported and `deps status` flags it
+$ n8n-manager n8n upgrade nodes     # update installed community nodes (~/.n8n/nodes), restart + health gate
+```
+
+Safety semantics (decision D-2, owner-approved 2026-11-21): the upgrade ALWAYS
+stops the service before installing — never a hot install under the live
+service; the unit + env files are backed up to
+`~/.local/share/n8n-manager/upgrade-backups/<timestamp>/` first; the restart
+is health-gated against `http://127.0.0.1:5678/healthz` (default timeout
+180 s); and any `N8N_LICENSE*` line in the env file REFUSES the upgrade —
+this system manages the Community edition only. `~/.n8n` (data, encryption
+key) is never written by an upgrade. Rollback: re-run
+`n8n upgrade --version <previous>` (restore the backed-up files manually if
+the unit/env changed).
+
+To upgrade deliberately: raise `n8n.deps.expected.n8n` in
+`application.yml`, rebuild, then run `n8n upgrade`. Downgrading below the
+installed version is NOT recommended — n8n's database migrations are
+one-way; restore a data backup instead.
 
 ## Diagnostics
 

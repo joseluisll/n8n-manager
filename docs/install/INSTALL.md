@@ -48,7 +48,12 @@ equivalents.
 The global npm prefix `/usr/local` is root-owned on this host, so the
 install is user-local via the per-command prefix override (no
 persistent npm configuration is changed). The version is PINNED so a
-re-run is a true no-op instead of a silent upgrade (bump deliberately):
+re-run is a true no-op instead of a silent upgrade — the pin's SINGLE
+SOURCE is `n8n.deps.expected.n8n` in `src/main/resources/application.yml`
+(D-1, US-05.3); `install-n8n.sh` extracts it automatically, and the
+manager's `n8n upgrade` command performs deliberate upgrades with
+stop-first + backups + a health gate (see `docs/DEPENDENCIES.md`). The
+manual equivalent (version from the pin):
 
 ```bash
 npm_config_prefix="$HOME/.local" npm install -g \
