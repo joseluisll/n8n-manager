@@ -20,6 +20,9 @@
     <properties>
         <java.version>21</java.version>
         <spring-shell.version>3.4.0</spring-shell.version>
+        <!-- Build tool plugin (not a runtime dependency); latest stable
+             from repo1 maven-metadata. -->
+        <jacoco.version>0.8.16</jacoco.version>
     </properties>
 
     <dependencies>
@@ -51,6 +54,29 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!-- Coverage: agent on the surefire JVM, HTML+XML+CSV report
+                 emitted right after the test phase, so a plain
+                 `mvn -B package` leaves target/site/jacoco/ behind. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
